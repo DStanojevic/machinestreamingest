@@ -1,0 +1,30 @@
+#build in sdk image ------------------------------------------
+FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
+WORKDIR /src
+# restoring nugets for app and test to speed up image build
+COPY ["MachineDataApi/MachineDataApi.csproj", "MachineDataApi/MachineDataApi.csproj"]
+RUN dotnet restore "MachineDataApi/MachineDataApi.csproj"
+COPY ["MachineDataApi.Tests/MachineDataApi.Tests.csproj", "MachineDataApi.Tests/MachineDataApi.Tests.csproj"]
+RUN dotnet restore "MachineDataApi.Tests/MachineDataApi.Tests.csproj"
+
+COPY ["MachineDataApi/", "MachineDataApi/"] .
+RUN dotnet build "MachineDataApi/MachineDataApi.csproj" --no-restore -c Release -o /app
+
+#runing unit tests ------------------------------------------
+FROM build AS test
+WORKDIR /src
+COPY --from=build /src .
+COPY ["MachineDataApi.Tests/", "MachineDataApi.Tests/"]
+WORKDIR /src/MachineDataApi.Tests
+RUN dotnet test --no-restore
+
+#publishing -------------------------------------------------
+FROM build AS publish
+RUN dotnet publish "MachineDataApi/MachineDataApi.csproj" --no-restore -c Release -o /app
+
+FROM mcr.microsoft.com/dotnet/aspnet:6.0 AS final
+WORKDIR /app
+EXPOSE 80
+COPY --from=publish /app .
+
+ENTRYPOINT ["dotnet", "MachineDataApi.dll"]
