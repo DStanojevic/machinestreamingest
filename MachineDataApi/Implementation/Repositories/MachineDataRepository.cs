@@ -10,6 +10,7 @@ public interface IMachineDataRepository
     Task<Option<PagedResult<MachineData>>> GetMachineDataPaged(Guid machineId, int skip = 0, int take = 10);
     Task<PagedResult<MachineData>> GetAllDataPaged(int skip = 0, int take = 10);
     Task<Option<MachineData>> GetItemById(Guid id);
+    Task<IEnumerable<Guid>> GetMachines();
 }
 
 public class InMemoryMachineDataRepository : IMachineDataRepository
@@ -67,6 +68,9 @@ public class InMemoryMachineDataRepository : IMachineDataRepository
 
         return Task.FromResult(machineData.Some());
     }
+
+    public Task<IEnumerable<Guid>> GetMachines()
+        => Task.FromResult((IEnumerable<Guid>) _machineDataStorage.Keys);
 
 
     private void ValidatePagingParams(int skip, int take)

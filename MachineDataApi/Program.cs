@@ -5,6 +5,7 @@ using MachineDataApi.Extensions;
 using MachineDataApi.Implementation;
 using MachineDataApi.Implementation.Repositories;
 using MachineDataApi.Implementation.Services;
+using MachineDataApi.Implementation.WebSocketHelpers;
 using MachineDataApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);

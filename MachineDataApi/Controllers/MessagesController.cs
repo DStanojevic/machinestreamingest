@@ -16,19 +16,22 @@ namespace MachineDataApi.Controllers
         }
 
         [HttpGet]
-        public Task<IActionResult> Get([FromQuery]PagingParams? pagingParams)
+        public async Task<IActionResult> Get([FromQuery]PagingParams? pagingParams)
         {
-            if (pagingParams == null)
-                pagingParams = new PagingParams();
+            pagingParams ??= new PagingParams();
 
-            return _machineDataService.GetAllDataPaged(pagingParams.Skip, pagingParams.Take);
+            var machineDataPagedResult = await _machineDataService.GetAllDataPaged(pagingParams.Skip, pagingParams.Take);
+            return Ok(machineDataPagedResult);
         }
 
         // GET api/<MessagesController>/5
         [HttpGet("{id}")]
-        public Task<IActionResult> Get(Guid id)
+        public async Task<IActionResult> Get(Guid id)
         {
-            return _machineDataService.GetMessage(id);
+            var machineDataResult = await _machineDataService.GetMessage(id);
+            return machineDataResult.Match(
+                some: p => (IActionResult) Ok(p),
+                none: () => NotFound());
         }
     }
 }

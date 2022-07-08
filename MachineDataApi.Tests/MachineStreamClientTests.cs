@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using MachineDataApi.Configuration;
 using MachineDataApi.Implementation;
 using MachineDataApi.Implementation.Services;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
+using MachineDataApi.Implementation.WebSocketHelpers;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NUnit.Framework;
@@ -40,11 +40,11 @@ public class MachineStreamClientTests
         webSocketMock.Verify();
         webSocketMock.Setup(p => p.ConnectAsync(It.IsAny<Uri>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        webSocketMock.Setup(p => p.ReceiveAsync(It.IsAny<ArraySegment<byte>>(), It.IsAny<CancellationToken>()))
+        webSocketMock.Setup(p => p.ReadMessage(It.IsAny<CancellationToken>()))
             .Returns(async () =>
             {
                 await Task.Delay(1000);
-                return new WebSocketReceiveResult(0, WebSocketMessageType.Text, true);
+                return new SuccessMessageResult(new byte[] {1, 2, 3, 4});
             });
         #endregion
 
@@ -52,7 +52,7 @@ public class MachineStreamClientTests
         var machineStreamClient = new MachineStreamClient(appConfig, webSocketMock.Object, machineServiceMock.Object, loggerMock.Object);
 
         await machineStreamClient.StartAsync(CancellationToken.None);
-        await Task.Delay(1200);
+        await Task.Delay(10);
         await machineStreamClient.StopAsync(CancellationToken.None);
         #endregion
 
@@ -76,11 +76,11 @@ public class MachineStreamClientTests
         webSocketMock.Verify();
         webSocketMock.Setup(p => p.ConnectAsync(It.IsAny<Uri>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        webSocketMock.Setup(p => p.ReceiveAsync(It.IsAny<ArraySegment<byte>>(), It.IsAny<CancellationToken>()))
+        webSocketMock.Setup(p => p.ReadMessage(It.IsAny<CancellationToken>()))
             .Returns(async () =>
             {
                 await Task.Delay(receiveMessageMillisecondsDelay);
-                return new WebSocketReceiveResult(10, WebSocketMessageType.Text, true);
+                return new SuccessMessageResult(new byte[] { 1, 2, 3, 4 });
             });
         #endregion
 

@@ -1,8 +1,9 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using MachineDataApi.Implementation.Repositories;
+using MachineDataApi.Mappers;
 using MachineDataApi.Models;
-using Microsoft.AspNetCore.Mvc;
+using Optional;
 
 namespace MachineDataApi.Implementation.Services;
 
@@ -10,9 +11,10 @@ namespace MachineDataApi.Implementation.Services;
 public interface IMachineDataService
 {
     Task SaveRawMessage(byte[] rawMessageBytes);
-    Task<IActionResult> GetAllDataPaged(int skip = 0, int take = 10);
-    Task<IActionResult> GetMessage(Guid id);
-    Task<IActionResult> GetMachineDataPaged(Guid machineId, int skip = 0, int take = 10);
+    Task<PagedResult<MachineDataDto>> GetAllDataPaged(int skip = 0, int take = 10);
+    Task<Option<MachineDataDto>> GetMessage(Guid id);
+    Task<Option<PagedResult<MachineDataDto>>> GetMachineDataPaged(Guid machineId, int skip = 0, int take = 10);
+    Task<IEnumerable<string>> GetMachines();
 }
 
 public class MachineDataService : IMachineDataService
@@ -39,25 +41,35 @@ public class MachineDataService : IMachineDataService
         return _machineDataRepository.Insert(machineMessage.Payload);
     }
 
-    public async Task<IActionResult> GetAllDataPaged(int skip = 0, int take = 10)
+    public async Task<PagedResult<MachineDataDto>> GetAllDataPaged(int skip = 0, int take = 10)
     {
         var pagedData = await _machineDataRepository.GetAllDataPaged(skip, take);
-        return new OkObjectResult(pagedData);
+        return new PagedResult<MachineDataDto>
+        {
+            Items = pagedData.Items.Select(p => p.ToMachineDataDto()).ToArray(),
+            TotalCount = pagedData.TotalCount
+        };
     }
 
-    public async Task<IActionResult> GetMessage(Guid id)
+    public async Task<Option<MachineDataDto>> GetMessage(Guid id)
     {
         var messageOption = await _machineDataRepository.GetItemById(id);
-        return messageOption.Match(
-            msg => (IActionResult) new OkObjectResult(msg),
-            () => (IActionResult) new NotFoundResult());
+        return messageOption.Map(p => p.ToMachineDataDto());
     }
 
-    public async Task<IActionResult> GetMachineDataPaged(Guid machineId, int skip = 0, int take = 10)
+    public async Task<Option<PagedResult<MachineDataDto>>> GetMachineDataPaged(Guid machineId, int skip = 0, int take = 10)
     {
         var machineDataOption = await _machineDataRepository.GetMachineDataPaged(machineId, skip, take);
-        return machineDataOption.Match(
-            pd => (IActionResult) new OkObjectResult(pd),
-            () => (IActionResult) new NotFoundResult());
+        return machineDataOption.Map(p => new PagedResult<MachineDataDto>
+        {
+            Items = p.Items.Select(i => i.ToMachineDataDto()).ToArray(),
+            TotalCount = p.TotalCount
+        });
+    }
+
+    public async Task<IEnumerable<string>> GetMachines()
+    {
+        var machineIds = await _machineDataRepository.GetMachines();
+        return machineIds.Select(p => p.ToString());
     }
 }

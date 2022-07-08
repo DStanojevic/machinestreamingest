@@ -1,6 +1,7 @@
 ﻿using System.Net.WebSockets;
 using MachineDataApi.Configuration;
 using MachineDataApi.Implementation.Services;
+using MachineDataApi.Implementation.WebSocketHelpers;
 
 namespace MachineDataApi.Implementation;
 
@@ -12,12 +13,15 @@ public interface IMachineStreamClient : IDisposable
 
 public class MachineStreamClient : IMachineStreamClient
 {
+    #region Private fields
     private readonly string _webSocketEndpoint;
     private readonly IWebSocketWrapper _clientWebSocket;
     private CancellationTokenSource? _cancellationTokenSource;
     private bool _ingestionActive;
     private readonly IMachineDataService _machineDataService;
+    private readonly Dictionary<Type, Func<IMessageResult, CancellationToken, Task>> _socketMessageResultHandlers;
     private ILogger<MachineStreamClient> _logger;
+    #endregion
 
     public MachineStreamClient(ApplicationConfiguration applicationConfiguration, IWebSocketWrapper clientWebSocket, IMachineDataService machineDataService, ILogger<MachineStreamClient> logger)
     {
@@ -25,8 +29,16 @@ public class MachineStreamClient : IMachineStreamClient
         _clientWebSocket = clientWebSocket;
         _machineDataService = machineDataService;
         _logger = logger;
+        _socketMessageResultHandlers =
+            new Dictionary<Type, Func<IMessageResult, CancellationToken, Task>>()
+            {
+                {typeof(AbortedMessageResult), HandleAbortResult},
+                {typeof(ConnectionLostMessageResult), HandleConnectionLostResult},
+                {typeof(SuccessMessageResult), HandleSuccessfulResult}
+            };
     }
 
+    #region Public methods
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting machine stream client.");
@@ -35,6 +47,7 @@ public class MachineStreamClient : IMachineStreamClient
             _logger.LogInformation("Machine stream client was already started.");
             return;
         }
+
         await Connect(cancellationToken);
         _cancellationTokenSource = new CancellationTokenSource();
         _ = StartIngestingMessages(_cancellationTokenSource.Token);
@@ -50,12 +63,14 @@ public class MachineStreamClient : IMachineStreamClient
             _logger.LogInformation("Machine stream client is inactive.");
             return;
         }
+
         try
         {
             _cancellationTokenSource.Cancel(); 
             if (_clientWebSocket.State == WebSocketState.Connecting || _clientWebSocket.State == WebSocketState.Open)
                 await _clientWebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure,
                     "Client stopped ingesting messages.", cancellationToken);
+
             _logger.LogInformation("Machine stream client successfully stopped.");
         }
         finally
@@ -63,7 +78,9 @@ public class MachineStreamClient : IMachineStreamClient
             _ingestionActive = false;
         }
     }
+    #endregion
 
+    #region Private methods
     private async Task Connect(CancellationToken cancellationToken, int millisecondsDelay = 0)
     {
         _logger.LogInformation($"Connecting to {_webSocketEndpoint}");
@@ -93,41 +110,43 @@ public class MachineStreamClient : IMachineStreamClient
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            WebSocketReceiveResult result;
-            var buffer = new ArraySegment<byte>(new byte[2048]);
-            var totalBytesReceived = 0;
-            do
-            {
-                result = await _clientWebSocket.ReceiveAsync(buffer, cancellationToken);
-                totalBytesReceived += result.Count;
-                if (result.CloseStatus != null)
-                {
-                    //Reset buffer
-                    buffer = new ArraySegment<byte>();
-                    _logger.LogWarning($"Connection to {_webSocketEndpoint} was closed unexpectedly. Close status {result.CloseStatus}, description {result.CloseStatusDescription}.\n"+
-                                       "Message will be discarded. Reconnecting...");
-                    await Connect(cancellationToken, 1500);
-                    break;
-                }
-            } while (!result.EndOfMessage);
-
-            if (result.EndOfMessage)
-            {
-                _logger.LogDebug($"Received message of {totalBytesReceived} bytes.");
-                try
-                {
-                    var messageData = new byte[totalBytesReceived];
-                    Array.Copy(buffer.Array, messageData, totalBytesReceived);
-                    await _machineDataService.SaveRawMessage(messageData);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to save message");
-                }
-            }
+            var messageResult = await _clientWebSocket.ReadMessage(cancellationToken);
+            await _socketMessageResultHandlers[messageResult.GetType()].Invoke(messageResult, cancellationToken);
         }
     }
 
+    #region Read socket result handlers
+    private Task HandleAbortResult(IMessageResult messageResult, CancellationToken cancellationToken)
+    {
+        if (messageResult is not AbortedMessageResult)
+            throw new InvalidOperationException($"Invalid message result of type {messageResult.GetType().FullName}.");
+        _logger.LogWarning("Listening socket aborted.");
+        return Task.CompletedTask;
+    }
+
+    private Task HandleConnectionLostResult(IMessageResult messageResult, CancellationToken cancellationToken)
+    {
+        var connectionLostResult = messageResult as ConnectionLostMessageResult;
+        if (connectionLostResult == null)
+            throw new InvalidOperationException($"Invalid message result of type {messageResult.GetType().FullName}.");
+
+        _logger.LogWarning($"Connection to {_webSocketEndpoint} was closed unexpectedly. Close status {connectionLostResult.CloseStatus}, description {connectionLostResult.Description}.\n" +
+                           "Message will be discarded. Reconnecting...");
+        return Connect(cancellationToken, 1500);
+    }
+
+    private Task HandleSuccessfulResult(IMessageResult messageResult, CancellationToken cancellationToken)
+    {
+        var successMessageResult = messageResult as SuccessMessageResult;
+        if(successMessageResult == null)
+            throw new InvalidOperationException($"Invalid message result of type {messageResult.GetType().FullName}.");
+
+        return _machineDataService.SaveRawMessage(successMessageResult.MessageData);
+    }
+    #endregion
+    #endregion
+
+    #region IDisposable implementation
     private void ReleaseUnmanagedResources()
     {
         _cancellationTokenSource?.Dispose();
@@ -145,4 +164,5 @@ public class MachineStreamClient : IMachineStreamClient
     {
         ReleaseUnmanagedResources();
     }
+    #endregion
 }
