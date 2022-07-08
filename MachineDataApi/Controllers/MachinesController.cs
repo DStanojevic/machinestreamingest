@@ -6,11 +6,11 @@ namespace MachineDataApi.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class MachineController : ControllerBase
+    public class MachinesController : ControllerBase
     {
         private readonly IMachineDataService _machineDataService;
 
-        public MachineController(IMachineDataService machineDataService)
+        public MachinesController(IMachineDataService machineDataService)
         {
             _machineDataService = machineDataService;
         }

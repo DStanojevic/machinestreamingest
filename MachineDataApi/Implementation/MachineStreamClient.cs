@@ -47,9 +47,8 @@ public class MachineStreamClient : IMachineStreamClient
             _logger.LogInformation("Machine stream client was already started.");
             return;
         }
-
-        await Connect(cancellationToken);
         _cancellationTokenSource = new CancellationTokenSource();
+        await Connect(cancellationToken);
         _ = StartIngestingMessages(_cancellationTokenSource.Token);
         _ingestionActive = true;
         _logger.LogInformation("Machine stream client successfully started.");
@@ -120,7 +119,9 @@ public class MachineStreamClient : IMachineStreamClient
     {
         if (messageResult is not AbortedMessageResult)
             throw new InvalidOperationException($"Invalid message result of type {messageResult.GetType().FullName}.");
+
         _logger.LogWarning("Listening socket aborted.");
+
         return Task.CompletedTask;
     }
 
@@ -132,14 +133,17 @@ public class MachineStreamClient : IMachineStreamClient
 
         _logger.LogWarning($"Connection to {_webSocketEndpoint} was closed unexpectedly. Close status {connectionLostResult.CloseStatus}, description {connectionLostResult.Description}.\n" +
                            "Message will be discarded. Reconnecting...");
+
         return Connect(cancellationToken, 1500);
     }
 
     private Task HandleSuccessfulResult(IMessageResult messageResult, CancellationToken cancellationToken)
     {
         var successMessageResult = messageResult as SuccessMessageResult;
-        if(successMessageResult == null)
+        if (successMessageResult == null)
             throw new InvalidOperationException($"Invalid message result of type {messageResult.GetType().FullName}.");
+
+        _logger.LogDebug($"Received message of {successMessageResult.MessageData.Length} bytes.");
 
         return _machineDataService.SaveRawMessage(successMessageResult.MessageData);
     }

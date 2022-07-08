@@ -7,8 +7,6 @@ public interface IMachineStreamClientFactory
 
 public class MachineStreamClientFactory : IMachineStreamClientFactory
 {
-    public IMachineStreamClient CreateMachineStreamClient(IServiceScope serviceScope)
-    {
-         return serviceScope.ServiceProvider.GetRequiredService<IMachineStreamClient>();
-    }
+    public IMachineStreamClient CreateMachineStreamClient(IServiceScope serviceScope) =>
+        serviceScope.ServiceProvider.GetRequiredService<IMachineStreamClient>();
 }

@@ -29,22 +29,23 @@ public class InMemoryMachineDataRepository : IMachineDataRepository
             machineDataItems.Add(machineData);
             return machineDataItems;
         });
+
         return Task.CompletedTask;
     }
 
     public Task<Option<PagedResult<MachineData>>> GetMachineDataPaged(Guid machineId, int skip = 0, int take = 10)
     {
         ValidatePagingParams(skip, take);
+
         if(!_machineDataStorage.TryGetValue(machineId, out var machineDataItems))
-        {
             return Task.FromResult(Option.None<PagedResult<MachineData>>());
-        }
 
         var result = new PagedResult<MachineData>
         {
             Items = machineDataItems.Skip(skip).Take(take).ToArray(),
             TotalCount = machineDataItems.Count
         };
+
         return Task.FromResult(result.Some());
     }
 
@@ -56,15 +57,14 @@ public class InMemoryMachineDataRepository : IMachineDataRepository
             Items = _plainDataStorage.Values.Skip(skip).Take(take),
             TotalCount = _plainDataStorage.Count
         };
+
         return Task.FromResult(result);
     }
 
     public Task<Option<MachineData>> GetItemById(Guid id)
     {
         if (!_plainDataStorage.TryGetValue(id, out var machineData))
-        {
             return Task.FromResult(Option.None<MachineData>());
-        }
 
         return Task.FromResult(machineData.Some());
     }

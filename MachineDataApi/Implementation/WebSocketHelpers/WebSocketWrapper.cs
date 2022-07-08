@@ -12,15 +12,12 @@ public interface IWebSocketWrapper: IDisposable
 
 public class WebSocketWrapper : IWebSocketWrapper
 {
-    private readonly ClientWebSocket _clientWebSocket = new ClientWebSocket();
+    private readonly ClientWebSocket _clientWebSocket = new();
 
     public WebSocketState State => _clientWebSocket.State;
 
     public Task ConnectAsync(Uri uri, CancellationToken cancellationToken) =>
         _clientWebSocket.ConnectAsync(uri, cancellationToken);
-
-    public Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken) =>
-        _clientWebSocket.ReceiveAsync(buffer, cancellationToken);
 
     public Task CloseAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken) =>
         _clientWebSocket.CloseAsync(closeStatus, statusDescription, cancellationToken);
@@ -38,23 +35,19 @@ public class WebSocketWrapper : IWebSocketWrapper
             {
                 if (cancellationToken.IsCancellationRequested)
                     return new AbortedMessageResult();
+
                 return new ConnectionLostMessageResult(result.CloseStatus.Value, result.CloseStatusDescription);
             }
         }
 
         var messageData = new byte[totalBytesReceived];
         Array.Copy(buffer.Array, messageData, totalBytesReceived);
-        return new SuccessMessageResult(messageData);
-    }
 
-    private void ReleaseUnmanagedResources()
-    {
-        _clientWebSocket.Dispose();
+        return new SuccessMessageResult(messageData);
     }
 
     private void Dispose(bool disposing)
     {
-        ReleaseUnmanagedResources();
         if (disposing)
         {
             _clientWebSocket.Dispose();
