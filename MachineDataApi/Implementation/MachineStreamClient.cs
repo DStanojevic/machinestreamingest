@@ -29,13 +29,6 @@ public class MachineStreamClient : IMachineStreamClient
         _clientWebSocket = clientWebSocket;
         _machineDataService = machineDataService;
         _logger = logger;
-        _socketMessageResultHandlers =
-            new Dictionary<Type, Func<IMessageResult, CancellationToken, Task>>()
-            {
-                {typeof(AbortedMessageResult), HandleAbortResult},
-                {typeof(ConnectionLostMessageResult), HandleConnectionLostResult},
-                {typeof(SuccessMessageResult), HandleSuccessfulResult}
-            };
     }
 
     #region Public methods
@@ -110,42 +103,50 @@ public class MachineStreamClient : IMachineStreamClient
         while (!cancellationToken.IsCancellationRequested)
         {
             var messageResult = await _clientWebSocket.ReadMessage(cancellationToken);
-            await _socketMessageResultHandlers[messageResult.GetType()].Invoke(messageResult, cancellationToken);
+            await HandleMessageResult(messageResult, cancellationToken);
+        }
+    }
+
+
+    private async Task HandleMessageResult(IMessageResult messageResult, CancellationToken cancellationToken)
+    {
+        switch (messageResult)
+        {
+            case SuccessMessageResult successMessageResult:
+                await HandleMessageResult(successMessageResult, cancellationToken);
+                break;
+            case ConnectionLostMessageResult connectionLostMessageResult:
+                await HandleMessageResult(connectionLostMessageResult, cancellationToken);
+                break;
+            case AbortedMessageResult abortedMessageResult:
+                await HandleMessageResult(abortedMessageResult, cancellationToken);
+                break;
+            default:
+                throw new NotSupportedException("Not supported message result type.");
         }
     }
 
     #region Read socket result handlers
-    private Task HandleAbortResult(IMessageResult messageResult, CancellationToken cancellationToken)
+    private Task HandleMessageResult(AbortedMessageResult messageResult, CancellationToken cancellationToken)
     {
-        if (messageResult is not AbortedMessageResult)
-            throw new InvalidOperationException($"Invalid message result of type {messageResult.GetType().FullName}.");
-
         _logger.LogWarning("Listening socket aborted.");
 
         return Task.CompletedTask;
     }
 
-    private Task HandleConnectionLostResult(IMessageResult messageResult, CancellationToken cancellationToken)
+    private Task HandleMessageResult(ConnectionLostMessageResult messageResult, CancellationToken cancellationToken)
     {
-        var connectionLostResult = messageResult as ConnectionLostMessageResult;
-        if (connectionLostResult == null)
-            throw new InvalidOperationException($"Invalid message result of type {messageResult.GetType().FullName}.");
-
-        _logger.LogWarning($"Connection to {_webSocketEndpoint} was closed unexpectedly. Close status {connectionLostResult.CloseStatus}, description {connectionLostResult.Description}.\n" +
+        _logger.LogWarning($"Connection to {_webSocketEndpoint} was closed unexpectedly. Close status {messageResult.CloseStatus}, description {messageResult.Description}.\n" +
                            "Message will be discarded. Reconnecting...");
 
         return Connect(cancellationToken, 1500);
     }
 
-    private Task HandleSuccessfulResult(IMessageResult messageResult, CancellationToken cancellationToken)
+    private Task HandleMessageResult(SuccessMessageResult messageResult, CancellationToken cancellationToken)
     {
-        var successMessageResult = messageResult as SuccessMessageResult;
-        if (successMessageResult == null)
-            throw new InvalidOperationException($"Invalid message result of type {messageResult.GetType().FullName}.");
+        _logger.LogDebug($"Received message of {messageResult.MessageData.Length} bytes.");
 
-        _logger.LogDebug($"Received message of {successMessageResult.MessageData.Length} bytes.");
-
-        return _machineDataService.SaveRawMessage(successMessageResult.MessageData);
+        return _machineDataService.SaveRawMessage(messageResult.MessageData);
     }
     #endregion
     #endregion
