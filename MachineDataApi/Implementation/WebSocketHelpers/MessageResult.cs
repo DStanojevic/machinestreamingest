@@ -14,10 +14,18 @@ public class ConnectionLostMessageResult : IMessageResult
 {
     public ConnectionLostMessageResult(WebSocketCloseStatus closeStatus, string description)
     {
-        CloseStatus = closeStatus;
+        CloseStatus = closeStatus.ToString();
         Description = description;
     }
-    public WebSocketCloseStatus CloseStatus { get; }
+
+    public ConnectionLostMessageResult(WebSocketError errorCode, string description)
+    {
+        WebSocketError = errorCode.ToString();
+        Description = description;
+    }
+    public string CloseStatus { get; }
+
+    public string WebSocketError { get; }
     public string Description { get; }
 }
 
