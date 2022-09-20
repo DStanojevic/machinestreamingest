@@ -54,7 +54,7 @@ namespace MachineDataApi.Implementation.Repositories
                 _dbContext.Machines.Add(machine);
             }
 
-            _dbContext.MachineData.Add(machineData);
+            machine.Data.Add(machineData);
 
             await _dbContext.SaveChangesAsync();
         }

@@ -27,7 +27,7 @@ public class Machine
 {
     public Guid Id { get; set; }
 
-    public IList<MachineData> Data { get; set; }
+    public IList<MachineData> Data { get; set; } = new List<MachineData>();
 
 }
 
