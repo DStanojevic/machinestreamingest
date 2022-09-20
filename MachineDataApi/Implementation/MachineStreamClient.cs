@@ -87,7 +87,14 @@ public class MachineStreamClient : IMachineStreamClient
 
         try
         {
-            await _clientWebSocket.ConnectAsync(new Uri(_webSocketEndpoint), cancellationToken);
+            if(_clientWebSocket.State == WebSocketState.Aborted)
+            {
+                await _clientWebSocket.ReconnectAsync(new Uri(_webSocketEndpoint), cancellationToken);
+            }
+            else
+            {
+                await _clientWebSocket.ConnectAsync(new Uri(_webSocketEndpoint), cancellationToken);
+            }
         }
         catch (Exception ex)
         {
@@ -134,12 +141,13 @@ public class MachineStreamClient : IMachineStreamClient
         return Task.CompletedTask;
     }
 
-    private Task HandleMessageResult(ConnectionLostMessageResult messageResult, CancellationToken cancellationToken)
+    private async Task HandleMessageResult(ConnectionLostMessageResult messageResult, CancellationToken cancellationToken)
     {
-        _logger.LogWarning($"Connection to {_webSocketEndpoint} was closed unexpectedly. Close status {messageResult.CloseStatus}, description {messageResult.Description}.\n" +
+        _logger.LogWarning($"Connection to {_webSocketEndpoint} was closed unexpectedly. Close status {messageResult.CloseStatus}, web socket error: {messageResult.WebSocketError}, description {messageResult.Description}.\n" +
                            "Message will be discarded. Reconnecting...");
 
-        return Connect(cancellationToken, 1500);
+         await Connect(cancellationToken, 1500);
+         await StartIngestingMessages(cancellationToken);
     }
 
     private Task HandleMessageResult(SuccessMessageResult messageResult, CancellationToken cancellationToken)

@@ -6,18 +6,32 @@ public interface IWebSocketWrapper: IDisposable
 {
     WebSocketState State { get; }
     Task ConnectAsync(Uri uri, CancellationToken cancellationToken);
+    Task ReconnectAsync(Uri uri, CancellationToken cancellationToken);
     Task<IMessageResult> ReadMessage(CancellationToken cancellationToken);
     Task CloseAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken);
 }
 
 public class WebSocketWrapper : IWebSocketWrapper
 {
-    private readonly ClientWebSocket _clientWebSocket = new();
+    private ClientWebSocket _clientWebSocket = new();
+    private readonly ILogger<WebSocketWrapper> _logger;
+
+    public WebSocketWrapper(ILogger<WebSocketWrapper> logger)
+    {
+        _logger = logger;
+    }
 
     public WebSocketState State => _clientWebSocket.State;
 
     public Task ConnectAsync(Uri uri, CancellationToken cancellationToken) =>
         _clientWebSocket.ConnectAsync(uri, cancellationToken);
+
+    public async Task ReconnectAsync(Uri uri, CancellationToken cancellationToken)
+    {
+        _clientWebSocket.Dispose();
+        _clientWebSocket = new ClientWebSocket();
+        await ConnectAsync(uri, cancellationToken);
+    }
 
     public Task CloseAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken) =>
         _clientWebSocket.CloseAsync(closeStatus, statusDescription, cancellationToken);
@@ -29,13 +43,30 @@ public class WebSocketWrapper : IWebSocketWrapper
         var totalBytesReceived = 0;
         while (result == null || !result.EndOfMessage)
         {
-            result = await _clientWebSocket.ReceiveAsync(buffer, cancellationToken);
+            _logger.LogDebug("Waiting for the data from the socket...");
+            try
+            {
+                result = await _clientWebSocket.ReceiveAsync(buffer, cancellationToken);
+            }
+            catch(WebSocketException ex)
+            {
+                _logger.LogError(ex, "Error during receiving data from the socket.");
+                return new ConnectionLostMessageResult(ex.WebSocketErrorCode, ex.Message);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, "Error during receiving data from the socket.");
+                throw;
+            }
+            
+            _logger.LogDebug($"Receieved {result.Count} bytes.");
             totalBytesReceived += result.Count;
+
+            if (cancellationToken.IsCancellationRequested)
+                return new AbortedMessageResult();
+
             if (result.CloseStatus != null)
             {
-                if (cancellationToken.IsCancellationRequested)
-                    return new AbortedMessageResult();
-
                 return new ConnectionLostMessageResult(result.CloseStatus.Value, result.CloseStatusDescription);
             }
         }
