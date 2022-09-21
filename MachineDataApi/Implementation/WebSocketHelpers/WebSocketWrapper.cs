@@ -39,7 +39,7 @@ public class WebSocketWrapper : IWebSocketWrapper
     public async Task<IMessageResult> ReadMessage(CancellationToken cancellationToken)
     {
         var buffer = new ArraySegment<byte>(new byte[2048]);
-        WebSocketReceiveResult result = null;
+        WebSocketReceiveResult? result = null;
         var totalBytesReceived = 0;
         while (result == null || !result.EndOfMessage)
         {
@@ -52,6 +52,10 @@ public class WebSocketWrapper : IWebSocketWrapper
             {
                 _logger.LogError(ex, "Error during receiving data from the socket.");
                 return new ConnectionLostMessageResult(ex.WebSocketErrorCode, ex.Message);
+            }
+            catch(OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return new AbortedMessageResult();
             }
             catch(Exception ex)
             {
