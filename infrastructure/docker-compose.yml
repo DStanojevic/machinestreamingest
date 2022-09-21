@@ -21,3 +21,14 @@ services:
         target: /var/lib/postgresql/data
     environment:
       - POSTGRES_PASSWORD=P@ssw0rd
+
+
+  machinedataapi:
+    container_name: machinedataapi
+    build: ../.
+    ports:
+      - 5034:80
+    networks:
+      - local-machinedata
+    depends_on:
+      - postgres
