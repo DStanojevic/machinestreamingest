@@ -1,7 +1,12 @@
-﻿using System.Net.WebSockets;
+﻿using System.Diagnostics;
+using System.Diagnostics.Metrics;
+using System.Net.WebSockets;
 using MachineDataApi.Configuration;
 using MachineDataApi.Implementation.Services;
 using MachineDataApi.Implementation.WebSocketHelpers;
+using MachineDataApi.Instrumentation;
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
 
 namespace MachineDataApi.Implementation;
 
@@ -20,14 +25,22 @@ public class MachineStreamClient : IMachineStreamClient
     private bool _ingestionActive;
     private readonly IMachineDataService _machineDataService;
     private readonly Dictionary<Type, Func<IMessageResult, CancellationToken, Task>> _socketMessageResultHandlers;
-    private ILogger<MachineStreamClient> _logger;
+    private readonly ActivitySource _activitySource; 
+    private readonly ILogger<MachineStreamClient> _logger;
     #endregion
 
-    public MachineStreamClient(ApplicationConfiguration applicationConfiguration, IWebSocketWrapper clientWebSocket, IMachineDataService machineDataService, ILogger<MachineStreamClient> logger)
+    public MachineStreamClient(
+        ApplicationConfiguration applicationConfiguration, 
+        IWebSocketWrapper clientWebSocket, 
+        IMachineDataService machineDataService, 
+        ILogger<MachineStreamClient> logger,
+        ActivitySource activitySource
+        )
     {
         _webSocketEndpoint = applicationConfiguration.MachineStreamEndPointUrl;
         _clientWebSocket = clientWebSocket;
         _machineDataService = machineDataService;
+        _activitySource = activitySource;
         _logger = logger;
     }
 
@@ -117,18 +130,24 @@ public class MachineStreamClient : IMachineStreamClient
 
     private async Task HandleMessageResult(IMessageResult messageResult, CancellationToken cancellationToken)
     {
+        using var activity = _activitySource.StartActivity("HandleMessageResult", ActivityKind.Consumer);
+        InstrumentationConstants.ProcessedMessagesCounter.Add(1);
         switch (messageResult)
         {
             case SuccessMessageResult successMessageResult:
+                activity?.SetTag("result", "success");
                 await HandleMessageResult(successMessageResult, cancellationToken);
                 break;
             case ConnectionLostMessageResult connectionLostMessageResult:
+                activity?.SetTag("result", "connectionissue");
                 await HandleMessageResult(connectionLostMessageResult, cancellationToken);
                 break;
             case AbortedMessageResult abortedMessageResult:
+                activity?.SetTag("result", "aborted");
                 await HandleMessageResult(abortedMessageResult, cancellationToken);
                 break;
             default:
+                activity?.SetTag("result", "unknownerror");
                 throw new NotSupportedException("Not supported message result type.");
         }
     }

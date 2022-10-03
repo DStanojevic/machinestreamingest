@@ -6,6 +6,7 @@ using MachineDataApi.Configuration;
 using MachineDataApi.Implementation;
 using MachineDataApi.Implementation.Services;
 using MachineDataApi.Implementation.WebSocketHelpers;
+using MachineDataApi.Instrumentation;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NUnit.Framework;
@@ -45,7 +46,7 @@ public class MachineStreamClientTests
                 return new SuccessMessageResult(messageBytes);
             });
         machineServiceMock.Setup(p => p.SaveRawMessage(It.Is<byte[]>(m => m.Length == messageBytes.Length))).Returns(Task.CompletedTask);
-        var machineStreamClient = new MachineStreamClient(appConfig, webSocketMock.Object, machineServiceMock.Object, loggerMock.Object);
+        var machineStreamClient = new MachineStreamClient(appConfig, webSocketMock.Object, machineServiceMock.Object, loggerMock.Object, InstrumentationConstants.DefaultActivitySource);
         #endregion
 
         #region Act
@@ -78,7 +79,7 @@ public class MachineStreamClientTests
                 return new SuccessMessageResult(new byte[] { 1, 2, 3, 4 });
             });
         machineServiceMock.Setup(p => p.SaveRawMessage(It.IsAny<byte[]>())).Returns(Task.CompletedTask);
-        var machineStreamClient = new MachineStreamClient(appConfig, webSocketMock.Object, machineServiceMock.Object, loggerMock.Object);
+        var machineStreamClient = new MachineStreamClient(appConfig, webSocketMock.Object, machineServiceMock.Object, loggerMock.Object, InstrumentationConstants.DefaultActivitySource);
         #endregion
 
         #region Act
@@ -115,7 +116,7 @@ public class MachineStreamClientTests
                 return new ConnectionLostMessageResult(WebSocketCloseStatus.InternalServerError,
                     "Remote machine returned and error.");
             });
-        var machineStreamClient = new MachineStreamClient(appConfig, webSocketMock.Object, machineServiceMock.Object, loggerMock.Object);
+        var machineStreamClient = new MachineStreamClient(appConfig, webSocketMock.Object, machineServiceMock.Object, loggerMock.Object, InstrumentationConstants.DefaultActivitySource);
         #endregion
 
         #region Act

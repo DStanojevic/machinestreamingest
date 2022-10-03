@@ -1,18 +1,25 @@
 ﻿using MachineDataApi.Db;
+using MachineDataApi.Instrumentation;
 using MachineDataApi.Models;
 using Microsoft.EntityFrameworkCore;
+using OpenTelemetry.Trace;
 using Optional;
 using Optional.Async.Extensions;
+using System.Diagnostics;
 
 namespace MachineDataApi.Implementation.Repositories
 {
     public class EfMachineDataRepository : IMachineDataRepository
     {
         private readonly MachineDataDbContext _dbContext;
+        private readonly Tracer _tracer;
+        private readonly ActivitySource _activitySource;
 
-        public EfMachineDataRepository(MachineDataDbContext dbContext)
+        public EfMachineDataRepository(MachineDataDbContext dbContext, TracerProvider traceProvider, ActivitySource activitySource)
         {
             _dbContext = dbContext;
+            _tracer = traceProvider.GetTracer(InstrumentationConstants.AppSource);
+            _activitySource = activitySource;
         }
 
         public async Task<PagedResult<MachineData>> GetAllDataPaged(int skip = 0, int take = 10)
@@ -29,7 +36,11 @@ namespace MachineDataApi.Implementation.Repositories
 
         public async Task<Option<PagedResult<MachineData>>> GetMachineDataPaged(Guid machineId, int skip = 0, int take = 10)
         {
+            using var activity = _activitySource.CreateActivity("GetMachineDataPaged", ActivityKind.Internal);
+            //using var span = _tracer.StartActiveSpan("GetMachineDataPaged");
             var machineOption = (await _dbContext.Machines.Include(p => p.Data.OrderByDescending(q => q.TimeStamp).Skip(skip).Take(take)).FirstOrDefaultAsync(x => x.Id == machineId)).SomeNotNull();
+            activity?.SetTag("recievedmachinedatasuccess", machineId);
+            //span.AddEvent("Received machine data from NpgSql");
             return await machineOption.MapAsync(async x => new PagedResult<MachineData>
             {
                 Items = x.Data.ToArray(),

@@ -22,13 +22,57 @@ services:
     environment:
       - POSTGRES_PASSWORD=P@ssw0rd
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.38
+    container_name: jaeger
+    ports:
+      - 6831:6831/udp
+      - 6832:6832/udp
+      - 5778:5778
+      - 16686:16686
+      - 4317:4317
+      - 4318:4318
+      - 14250:14250
+      - 14268:14268
+      - 14269:14269
+      - 9411:9411
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - local-machinedata
+
+  prometheus:
+    build:  prometheus/.
+    container_name: prometheus
+    ports:
+      - 9090:9090
+    networks:
+      - local-machinedata
+    depends_on:
+      - machinedataapi
 
   machinedataapi:
     container_name: machinedataapi
     build: ../.
     ports:
       - 5034:80
+      - :80
+    environment:
+      - ASPNETCORE_ENVIRONMENT=STAGE
+      - OTEL_EXPORTER_JAEGER_AGENT_HOST=jaeger
     networks:
       - local-machinedata
     depends_on:
       - postgres
+      - jaeger
+
+  # telnetclient:
+  #   container_name: nginx
+  #   build: nginx/.
+  #   ports:
+  #     - 8080:80
+  #   networks:
+  #     - local-machinedata
+  #   #depends_on:
+  #   #  - machinedataapi
