@@ -33,5 +33,24 @@ namespace MachineDataApi.Controllers
                 some: p => (IActionResult)Ok(p),
                 none: () => NotFound());
         }
+
+
+        [HttpPost]
+        public Task<IActionResult> RandomFail([FromBody]MachineData data)
+        {
+            var random = new Random();
+
+            var det = random.Next(0, 100);
+            if(det < 15)
+            {
+                throw new InvalidOperationException("Unknown error occured.");
+            }
+            if(det >= 15 && det < 30)
+            {
+                return Task.FromResult((IActionResult)BadRequest("Invalid request data"));
+            }
+
+            return Task.FromResult((IActionResult)Ok());
+        }
     }
 }
