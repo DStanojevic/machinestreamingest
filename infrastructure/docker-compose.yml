@@ -5,12 +5,12 @@ networks:
 
 volumes:
   postgres-local-data:
-
+  grafana-data:
 
 services:
   postgres:
+    image: postgres:14.5
     container_name: postgres_db
-    build: postgres/.
     ports:
       - 5432:5432
     networks:
@@ -43,7 +43,7 @@ services:
       - local-machinedata
 
   prometheus:
-    build:  prometheus/.
+    build: prometheus/.
     container_name: prometheus
     ports:
       - 9090:9090
@@ -51,6 +51,23 @@ services:
       - local-machinedata
     depends_on:
       - machinedataapi
+
+  grafana:
+    build: grafana/.
+    container_name: grafana
+    ports:
+      - 3000:3000
+    networks:
+      - local-machinedata
+    volumes:
+      - type: volume
+        source: grafana-data
+        target: /var/lib/grafana
+      - type: volume
+        source: grafana-data
+        target: /var/log/grafana
+    depends_on:
+      - prometheus
 
   machinedataapi:
     container_name: machinedataapi
