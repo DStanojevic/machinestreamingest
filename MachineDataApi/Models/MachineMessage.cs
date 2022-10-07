@@ -22,6 +22,15 @@ public class MachineData
     public MachineStatus Status { get; set; }
 }
 
+
+public class Machine
+{
+    public Guid Id { get; set; }
+
+    public IList<MachineData> Data { get; set; } = new List<MachineData>();
+
+}
+
 public enum MachineStatus
 {
     Idle,

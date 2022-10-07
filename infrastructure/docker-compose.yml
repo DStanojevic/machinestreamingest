@@ -1,0 +1,34 @@
+version: '3.7'
+
+networks:
+  local-machinedata:
+
+volumes:
+  postgres-local-data:
+
+
+services:
+  postgres:
+    container_name: postgres_db
+    build: postgres/.
+    ports:
+      - 5432:5432
+    networks:
+      - local-machinedata
+    volumes:
+      - type: volume
+        source: postgres-local-data
+        target: /var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=P@ssw0rd
+
+
+  machinedataapi:
+    container_name: machinedataapi
+    build: ../.
+    ports:
+      - 5034:80
+    networks:
+      - local-machinedata
+    depends_on:
+      - postgres
