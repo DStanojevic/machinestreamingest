@@ -66,6 +66,7 @@ builder.Services.RegisterApplicationConfiguration(builder.Configuration);
 
 builder.Services.AddDbContext<MachineDataDbContext>(options =>
 {
+    options.AddInterceptors(new DbConnectionInterceptor());
     options.UseNpgsql(builder.Configuration.GetConnectionString("MACHINEDATA_DB_CONNECTION"), npgOpt =>
     {
         //Add special configuring here..
